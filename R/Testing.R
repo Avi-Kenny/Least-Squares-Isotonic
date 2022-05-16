@@ -5,10 +5,12 @@
   # Generate dataset
   L <- list(
     n = 50,
-    distr_A = "N(0.5,0.04)", # "Unif(0,1)"
-    theta_true = "identity"
+    distr_A = "Unif(0,1)", # "Unif(0,1)" "N(0.5,0.04)"
+    theta_true = "identity",
+    sigma = 0.2
   )
-  dat_obj <- generate_data(n=L$n, distr_A=L$distr_A, theta_true=L$theta_true)
+  dat_obj <- generate_data(n=L$n, distr_A=L$distr_A,
+                           theta_true=L$theta_true, sigma=L$sigma)
   dat <- dat_obj$dat
   theta_0 <- dat$theta_0
 

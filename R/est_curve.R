@@ -76,6 +76,39 @@ est_curve <- function(dat, type) {
     })
   }
 
+  # Temporary: look at difference between two estimators
+  if (type=="difference") {
+
+    Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
+    Phi_n <- ecdf(dat$a)
+    cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
+    LS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+    pred_x <- round(seq(0,1,0.001),3)
+    pred_y <- predict(LS, newdata=pred_x)
+    dLS <- Vectorize(function(x) {
+      width <- 0.01
+      x1 <- x - width/2; x2 <- x + width/2;
+      if (x1<0) { x2 <- x2 - x1; x1 <- 0; }
+      if (x2>1) { x1 <- x1 - x2 + 1; x2 <- 1; }
+      x1 <- round(x1,3); x2 <- round(x2,3);
+      ind1 <- which(pred_x==x1); ind2 <- which(pred_x==x2);
+      y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
+      return((y2-y1)/width)
+    })
+    reg1 <- function(x) { dLS(Phi_n(x)) }
+
+    # Iso GCM2
+    dat <- arrange(dat,a)
+    reg2 <- Vectorize(function(x) {
+      index <- which.min(abs(x-dat$a))
+      pred <- Iso::pava(y=dat$y)
+      return(pred[index])
+    })
+
+    reg <- function (x) { reg1(x) - reg2(x) }
+
+  }
+
   return(reg)
 
 }

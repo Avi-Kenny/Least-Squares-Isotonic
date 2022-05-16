@@ -4,7 +4,8 @@
 one_simulation <- function() {
 
   # Generate dataset
-  dat_obj <- generate_data(n=L$n, distr_A=L$distr_A, theta_true=L$theta_true)
+  dat_obj <- generate_data(n=L$n, distr_A=L$distr_A,
+                           theta_true=L$theta_true, sigma=L$sigma)
   dat <- dat_obj$dat
   theta_0 <- dat_obj$theta_0
 
