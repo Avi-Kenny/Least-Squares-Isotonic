@@ -87,10 +87,9 @@ if (cfg$main_task=="run") {
         packages = cfg$pkgs
       )
       sim %<>% set_levels(
-        # n = c(100,200),
         n = c(100,200,400,800,1600,3200),
         distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
-        theta_true = c("identity", "flat"), # "flat", "identity", "square"
+        theta_true = c("identity", "constant"), # "constant", "identity", "square"
         reg_type = c("Iso LS", "Iso GCM2"),
         # reg_type = c("Linear", "Iso GCM", "Iso GCM2", "Iso LS", "difference"),
         sigma = 0.2
@@ -143,16 +142,24 @@ if (cfg$main_task=="run") {
 
 
 
-#############################.
-##### VIZ: Bias and MSE #####
-#############################.
+####################################.
+##### VIZ: Bias, Variance, MSE #####
+####################################.
 
 if (F) {
 
+  # Set this manually
+  w <- list(
+    print_or_save = "save", # "print" "save"
+    theta_true = "constant", # "identity" "constant"
+    scaled = T,
+    zoomed = T
+  )
+
   # Summarize results
   summ_bias <- summ_var <- summ_sd <- summ_mse <- list()
-  for (i in c(1:11)) {
-    m <- format(round(i/10-0.1,2), nsmall=1)
+  for (i in c(1:51)) {
+    m <- format(round(i/50-0.02,2), nsmall=2)
     summ_bias[[i]] <- list(
       name = paste0("bias_",m),
       estimate = paste0("est_",m),
@@ -162,17 +169,13 @@ if (F) {
       name = paste0("var_",m),
       x = paste0("est_",m)
     )
-    summ_sd[[i]] <- list(
-      name = paste0("sd_",m),
-      x = paste0("est_",m)
-    )
     summ_mse[[i]] <- list(
       name = paste0("mse_",m),
       estimate = paste0("est_",m),
       truth = paste0("theta_",m)
     )
   }
-  summ <- summarize(sim, bias=summ_bias, var=summ_var, sd=summ_sd, mse=summ_mse)
+  summ <- summarize(sim, bias=summ_bias, var=summ_var, mse=summ_mse)
   summ %<>% rename("Estimator"=reg_type)
 
   p_data <- pivot_longer(
@@ -183,58 +186,103 @@ if (F) {
   )
   p_data %<>% mutate(point=as.numeric(point))
 
+  # Add scaled bias/var/MSE
+  p_data %<>% mutate(
+    value2 = case_when(
+      theta_true=="identity" & stat %in% c("bias") ~ n^(1/3)*value,
+      theta_true=="identity" & stat %in% c("var","mse") ~ n^(2/3)*value,
+      theta_true=="constant" & stat %in% c("bias") ~ n^(1/2)*value,
+      theta_true=="constant" & stat %in% c("var","mse") ~ n^(1/1)*value
+    )
+  )
+
+  # Manipulations specific to `w` plot config object
+  w$factor <- ifelse(!w$scaled, "", ifelse(
+    w$theta_true=="constant", "n^{1/2}", "n^{1/3}")
+  )
+  p_data %<>% filter(theta_true==w$theta_true)
+  if (w$scaled) {
+    p_data$value <- p_data$value2
+  }
+
+  # Y axis limits
+  if (w$zoomed==T) {
+    ylim_b <- filter(p_data, stat=="bias" & Estimator=="Iso LS")$value %>%
+      abs() %>% max() %>% (function(x) { c(-2*x, 2*x) })
+    ylim_v <- filter(p_data, stat=="var" & Estimator=="Iso LS")$value %>%
+      max() %>% (function(x) { c(0, 2*x) })
+    ylim_m <- filter(p_data, stat=="mse" & Estimator=="Iso LS")$value %>%
+      max() %>% (function(x) { c(0, 2*x) })
+  } else {
+    ylim_b <- filter(p_data, stat=="bias")$value %>%
+      abs() %>% max() %>% (function(x) { c(-1*x, x) })
+    ylim_v <- filter(p_data, stat=="var")$value %>%
+      max() %>% (function(x) { c(0, x) })
+    ylim_m <- filter(p_data, stat=="mse")$value %>%
+      max() %>% (function(x) { c(0, x) })
+  }
+
   # Bias plot
   # Export: 10" x 6"
-  # Note: change "bias" to "biasG" for Gamma bias
-  ggplot(
+  # Note: change "value" to "value2" for scaled plots
+  plot_b <- ggplot(
     filter(p_data, stat=="bias"),
     aes(x=point, y=value, color=Estimator, group=Estimator)
   ) +
     geom_line() +
     facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
     theme(legend.position="bottom") +
-    # labs(title="Bias", x="A", y="Bias")
-    labs(title=unname(latex2exp::TeX("$\\theta_0$: identity")),
-         x="A", y="Bias")
+    ylim(ylim_b) +
+    labs(title = unname(latex2exp::TeX(paste0("$Bias(", w$factor,"\\theta_n)$, ",
+                                              w$theta_true, " function"))),
+         x = "A",
+         y = "Bias")
 
   # Variance plot
   # Export: 10" x 6"
-  ggplot(
+  # Note: change "value" to "value2" for scaled plots
+  plot_v <- ggplot(
     filter(p_data, stat=="var"),
     aes(x=point, y=value, color=Estimator, group=Estimator)
   ) +
     geom_line() +
     facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
     theme(legend.position="bottom") +
-    # labs(title="Variance", x="A", y="Variance")
-    labs(title=unname(latex2exp::TeX("$\\theta_0$: identity")),
-         x="A", y="Variance")
-
-  # SD plot
-  # Export: 10" x 6"
-  ggplot(
-    filter(p_data, stat=="sd"),
-    aes(x=point, y=value, color=Estimator, group=Estimator)
-  ) +
-    geom_line() +
-    facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
-    theme(legend.position="bottom") +
-    # labs(title="Variance", x="A", y="Standard Deviation")
-    labs(title=unname(latex2exp::TeX("$\\theta_0$: identity")),
-         x="A", y="Standard Deviation")
+    ylim(ylim_v) +
+    labs(title = unname(latex2exp::TeX(paste0("$Var(", w$factor,"\\theta_n)$, ",
+                                              w$theta_true, " function"))),
+         x = "A",
+         y = "Variance")
 
   # MSE plot
   # Export: 10" x 6"
-  ggplot(
+  # Note: change "value" to "value2" for scaled plots
+  plot_m <- ggplot(
     filter(p_data, stat=="mse"),
     aes(x=point, y=value, color=Estimator, group=Estimator)
   ) +
     geom_line() +
     facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
     theme(legend.position="bottom") +
-    # labs(title="MSE", x="A", y="MSE")
-    labs(title=unname(latex2exp::TeX("$\\theta_0$: identity")),
-         x="A", y="MSE")
+    ylim(ylim_m) +
+    labs(title = unname(latex2exp::TeX(paste0("$MSE(", w$factor,"\\theta_n)$, ",
+                                              w$theta_true, " function"))),
+         x = "A",
+         y = "MSE")
+
+  if (w$print_or_save=="print") {
+    for (p in c("b", "v", "m")) { print(get(paste0("plot_",p))) }
+  } else if (w$print_or_save=="save") {
+    for (p in c("b", "v", "m")) {
+      sc <- ifelse(w$scaled, "scaled", "unscaled")
+      wh <- ifelse(p=="b", "Bias", ifelse(p=="v", "Variance", "MSE"))
+      zm <- ifelse(w$zoomed, "zoomed", "unzoomed")
+      ggsave(
+        filename = paste0(wh, " (", w$theta_true, ",", sc, ",", zm, ").pdf"),
+        plot = get(paste0("plot_",p)), device="pdf", width=10, height=6
+      )
+    }
+  }
 
 }
 

@@ -48,3 +48,5 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 Least-Squares-Isotonic.Rproj
+SimEngine.out
+sim.rds

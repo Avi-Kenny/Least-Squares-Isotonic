@@ -14,9 +14,9 @@ one_simulation <- function() {
 
   # Get estimated values
   sim_res <- list()
-  for (val in round(seq(0,1,0.1),1)) {
-    sim_res[[paste0("est_",format(val,nsmall=1))]] <- reg(val)
-    sim_res[[paste0("theta_",format(val,nsmall=1))]] <- theta_0(val)
+  for (val in round(seq(0,1,0.02),2)) {
+    sim_res[[paste0("est_",format(val,nsmall=2))]] <- reg(val)
+    sim_res[[paste0("theta_",format(val,nsmall=2))]] <- theta_0(val)
   }
 
   return(sim_res)
