@@ -20,7 +20,9 @@ generate_data <- function(n, distr_A, theta_true, sigma) {
   if (theta_true=="identity") {
     theta_0 <- function(x) { x }
   } else if (theta_true=="constant") {
-    theta_0 <- function(x) { 0 }
+    theta_0 <- Vectorize(function(x) { 0 })
+  } else if (theta_true=="constant (1)") {
+    theta_0 <- Vectorize(function(x) { 1 })
   } else if (theta_true=="square") {
     theta_0 <- function(x) { x^2 }
   } else {

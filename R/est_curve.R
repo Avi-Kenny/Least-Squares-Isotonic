@@ -3,25 +3,42 @@
 #' @param dat Dataset returned by generate_dataset
 #' @param type Type of estimator. One of c("Linear", "Quadratic", "Iso GCM",
 #'     "Iso GCM2", "Iso LS")
-#' @return A regression estimator function
-est_curve <- function(dat, type) {
+#' @param return_Theta_n Boolean; return primitive estimator
+#' @param return_cusum Boolean; return CUSUM diagram
+#' @return A regression estimator function (along with a primitive estimator,
+#'     when applicable)
+est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
+
+  # Set placeholders
+  Theta_n <- NA
+  cusum <- NA
 
   # Parametric (linear)
   if (type=="Linear") {
     model <- lm(y~a, dat=dat)
     cf <- as.numeric(coefficients(model))
-    reg <- function(x) { cf[1] + cf[2]*x }
+    theta_n <- function(x) { cf[1] + cf[2]*x }
   }
 
   # Parametric (quadratic)
   if (type=="Quadratic") {
     model <- lm(y~a+I(a^2), dat=dat)
     cf <- as.numeric(coefficients(model))
-    reg <- function(x) { cf[1] + cf[2]*x + cf[3]*x^2 }
+    theta_n <- function(x) { cf[1] + cf[2]*x + cf[3]*x^2 }
   }
 
-  # Standard isotonic regression estimator
-  if (type %in% c("Iso GCM", "Iso LS")) {
+  # Convex rearrangement
+  if (type=="Rearrangement") {
+    theta_n <- approxfun(
+      x = sort(dat$a),
+      y = sort(dat$y),
+      method = "constant",
+      rule = 2,
+      f = 0
+    )
+  }
+
+  if (type %in% c("Iso GCM", "Iso GCM2", "Iso LS")) {
 
     # Estimate primitive
     Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
@@ -32,9 +49,19 @@ est_curve <- function(dat, type) {
     # Create CUSUM diagram
     cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
 
+    # Compute the GCM
+    if (type %in% c("Iso GCM", "Iso GCM2")) {
+      GCM <- gcmlcm(x=cusum$x, y=cusum$y, type="gcm")
+      Theta_n <- approxfun(
+        x = GCM$x.knots,
+        y = GCM$y.knots,
+        method = "linear",
+        rule = 2
+      )
+    }
+
     # Take the GCM and its derivative
     if (type=="Iso GCM") {
-      GCM <- gcmlcm(x=cusum$x, y=cusum$y, type="gcm")
       dGCM <- approxfun(
         x = GCM$x.knots[-length(GCM$x.knots)],
         y = GCM$slope.knots,
@@ -42,7 +69,18 @@ est_curve <- function(dat, type) {
         rule = 2,
         f = 0
       )
-      reg <- function(x) { dGCM(Phi_n(x)) }
+      theta_n <- function(x) { dGCM(Phi_n(x)) }
+    }
+
+    # Isotonic regression estimator, using Iso package
+    # Note: this estimator jumps at the midpoint
+    if (type=="Iso GCM2") {
+      dat <- arrange(dat,a)
+      theta_n <- Vectorize(function(x) {
+        index <- which.min(abs(x-dat$a))
+        pred <- Iso::pava(y=dat$y)
+        return(pred[index])
+      })
     }
 
     # Take the convex least squares line and its derivative
@@ -60,20 +98,13 @@ est_curve <- function(dat, type) {
         y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
         return((y2-y1)/width)
       })
-      reg <- function(x) { dLS(Phi_n(x)) }
+      theta_n <- function(x) { dLS(Phi_n(x)) }
+      Theta_n <- Vectorize(function(x) {
+        ind <- which.min(abs(x-pred_x))
+        return(pred_y[ind])
+      })
     }
 
-  }
-
-  # Isotonic regression estimator, using Iso package
-  # Note: this estimator jumps at the midpoint
-  if (type=="Iso GCM2") {
-    dat <- arrange(dat,a)
-    reg <- Vectorize(function(x) {
-      index <- which.min(abs(x-dat$a))
-      pred <- Iso::pava(y=dat$y)
-      return(pred[index])
-    })
   }
 
   # Temporary: look at difference between two estimators
@@ -95,20 +126,23 @@ est_curve <- function(dat, type) {
       y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
       return((y2-y1)/width)
     })
-    reg1 <- function(x) { dLS(Phi_n(x)) }
+    theta_n1 <- function(x) { dLS(Phi_n(x)) }
 
     # Iso GCM2
     dat <- arrange(dat,a)
-    reg2 <- Vectorize(function(x) {
+    theta_n2 <- Vectorize(function(x) {
       index <- which.min(abs(x-dat$a))
       pred <- Iso::pava(y=dat$y)
       return(pred[index])
     })
 
-    reg <- function (x) { reg1(x) - reg2(x) }
+    theta_n <- function (x) { theta_n1(x) - theta_n2(x) }
 
   }
 
-  return(reg)
+  res <- list(theta_n=theta_n)
+  if (return_Theta_n) { res$Theta_n <- Theta_n }
+  if (return_cusum) { res$cusum <- cusum }
+  return(res)
 
 }

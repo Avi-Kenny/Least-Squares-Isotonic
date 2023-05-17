@@ -10,12 +10,12 @@ one_simulation <- function() {
   theta_0 <- dat_obj$theta_0
 
   # Estimate regression function
-  reg <- est_curve(dat, L$reg_type)
+  theta_n <- est_curve(dat, L$reg_type)$theta_n
 
   # Get estimated values
   sim_res <- list()
   for (val in round(seq(0,1,0.02),2)) {
-    sim_res[[paste0("est_",format(val,nsmall=2))]] <- reg(val)
+    sim_res[[paste0("est_",format(val,nsmall=2))]] <- theta_n(val)
     sim_res[[paste0("theta_",format(val,nsmall=2))]] <- theta_0(val)
   }
 
