@@ -9,16 +9,15 @@
 
 # Set global config
 cfg <- list(
-  main_task = "run", # run update analysis.R
-  which_sim = "estimation", # "estimation" "edge" "testing" "Cox"
-  level_set_which = "level_set_estimation_1", # level_set_estimation_1 level_set_testing_1 level_set_Cox_1
-  # keep = c(1:3,7:9,16:18,22:24),
+  main_task = "run", # run update
+  which_sim = "regression", # "estimation" "edge" "testing" "Cox"
+  level_set_which = "level_set_regression_1",
   num_sim = 1000,
   pkgs = c("dplyr", "Iso", "fdrtool", "simest", "tidyr", "truncnorm",
            "modeest"),
   pkgs_nocluster = c("ggplot2"),
   parallel = "none",
-  n_cores = 200,
+  n_cores = 500,
   stop_at_error = FALSE
 )
 
@@ -69,9 +68,39 @@ if (load_pkgs_local) {
 
 
 
+##########################################################.
+##### MAIN: Set level sets for different simulations #####
+##########################################################.
+
+if (Sys.getenv("sim_run") %in% c("first", "")) {
+
+  # Regression: main
+  level_set_regression_1 <- list(
+    n = c(100,200,400,800), # 1600,3200
+    distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
+    theta_true = c("identity", "constant"), # "square"
+    # reg_type = c("Iso LS", "Iso GCM2"),
+    reg_type = c("Iso LS", "Iso GCM2", "Rearrangement"),
+    # reg_type = c("Linear", "Iso GCM", "Iso GCM2", "Iso LS", "difference"),
+    sigma = 0.2
+  )
+
+  # Regression: difference between estimators
+  level_set_estimation_2 <- level_set_estimation_1
+  level_set_estimation_2$reg_type <- "difference"
+
+  level_set <- get(cfg$level_set_which)
+
+}
+
+
+
 ##########################################.
 ##### MAIN: Setup and run simulation #####
 ##########################################.
+
+# Set global constants
+C <- list() # placeholde
 
 if (cfg$main_task=="run") {
 
@@ -86,28 +115,12 @@ if (cfg$main_task=="run") {
         parallel = cfg$parallel,
         n_cores = cfg$n_cores,
         stop_at_error = cfg$stop_at_error,
+        # batch_levels = c("n", "distr_A"),
+        # return_batch_id = T,
+        # seed = 123, # !!!!!
         packages = cfg$pkgs
       )
-      sim %<>% set_levels(
-
-        # Main simulation
-        n = c(100,200,400,800),
-        # n = c(100,200,400,800,1600,3200),
-        distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
-        theta_true = c("identity", "constant"), # "constant", "identity", "square"
-        # reg_type = c("Iso LS", "Iso GCM2"),
-        reg_type = c("Iso LS", "Iso GCM2", "Rearrangement"),
-        # reg_type = c("Linear", "Iso GCM", "Iso GCM2", "Iso LS", "difference"),
-        sigma = 0.2
-
-        # Difference bw estimators
-        # n = c(100,200,400,800,1600,3200),
-        # distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
-        # theta_true = c("identity", "constant"),
-        # reg_type = "difference",
-        # sigma = 0.2
-
-      )
+      sim <- do.call(set_levels, c(list(sim), level_set))
       if (!is.null(cfg$keep)) { sim %<>% set_levels(.keep=cfg$keep) }
 
       # Simulation script
@@ -121,7 +134,7 @@ if (cfg$main_task=="run") {
 
     last = {
 
-      sim %>% summarize() %>% print()
+      sim %>% SimEngine::summarize() %>% print()
 
     },
 
