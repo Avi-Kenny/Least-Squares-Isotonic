@@ -2,7 +2,7 @@
 #'
 #' @param dat Dataset returned by generate_dataset
 #' @param type Type of estimator. One of c("Linear", "Quadratic", "Iso GCM",
-#'     "Iso GCM2", "Iso LS")
+#'     "Iso GCM2", "Iso CLS")
 #' @param return_Theta_n Boolean; return primitive estimator
 #' @param return_cusum Boolean; return CUSUM diagram
 #' @return A regression estimator function (along with a primitive estimator,
@@ -27,7 +27,7 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     theta_n <- function(x) { cf[1] + cf[2]*x + cf[3]*x^2 }
   }
 
-  if (type %in% c("Iso GCM", "Iso GCM2", "Iso LS")) {
+  if (type %in% c("Iso GCM", "Iso GCM2", "Iso CLS")) {
 
     # Estimate primitive
     Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
@@ -73,11 +73,11 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     }
 
     # Take the convex least squares line and its derivative
-    if (type=="Iso LS") {
-      LS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+    if (type=="Iso CLS") {
+      CLS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
       pred_x <- round(seq(0,1,0.001),3)
-      pred_y <- predict(LS, newdata=pred_x)
-      dLS <- Vectorize(function(x) {
+      pred_y <- predict(CLS, newdata=pred_x)
+      dCLS <- Vectorize(function(x) {
         width <- 0.01
         x1 <- x - width/2; x2 <- x + width/2;
         if (x1<0) { x2 <- x2 - x1; x1 <- 0; }
@@ -87,7 +87,7 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
         y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
         return((y2-y1)/width)
       })
-      theta_n <- function(x) { dLS(Phi_n(x)) }
+      theta_n <- function(x) { dCLS(Phi_n(x)) }
       Theta_n <- Vectorize(function(x) {
         ind <- which.min(abs(x-pred_x))
         return(pred_y[ind])
@@ -104,10 +104,10 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     # Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
     # Phi_n <- ecdf(dat$a)
     # cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
-    # LS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+    # CLS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
     # pred_x <- round(seq(0,1,0.001),3)
-    # pred_y <- predict(LS, newdata=pred_x)
-    # dLS <- Vectorize(function(x) {
+    # pred_y <- predict(CLS, newdata=pred_x)
+    # dCLS <- Vectorize(function(x) {
     #   width <- 0.01
     #   x1 <- x - width/2; x2 <- x + width/2;
     #   if (x1<0) { x2 <- x2 - x1; x1 <- 0; }
@@ -117,7 +117,7 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     #   y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
     #   return((y2-y1)/width)
     # })
-    # theta_n1 <- function(x) { dLS(Phi_n(x)) }
+    # theta_n1 <- function(x) { dCLS(Phi_n(x)) }
     #
     # # Iso GCM2
     # dat <- arrange(dat,a)

@@ -79,7 +79,7 @@ if (Sys.getenv("sim_run") %in% c("first", "")) {
     n = c(100,200,400,800,1600), # ,3200
     distr_A = c("Unif(0,1)"), # "Unif(0,1)", "N(0.5,0.09)"
     theta_true = c("identity"), # "identity", "square", "constant"
-    reg_type = c("Iso LS", "Iso GCM"), # "Linear", "Iso GCM", "Iso GCM2", "Iso LS"
+    reg_type = c("Iso CLS", "Iso GCM"), # "Linear", "Iso GCM", "Iso GCM2", "Iso CLS"
     sigma = 0.2
   )
 
@@ -95,10 +95,10 @@ if (Sys.getenv("sim_run") %in% c("first", "")) {
   # Regression: main
   level_set_density_1 <- list(
     n = c(100,200,400,800), # 1600,3200
-    type = c("GCM", "LS")
+    type = c("GCM", "CLS")
     # distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
     # theta_true = c("identity", "constant"), # "square"
-    # reg_type = c("Iso LS", "Iso GCM2"), # "Linear", "Iso GCM", "Iso GCM2", "Iso LS"
+    # reg_type = c("Iso CLS", "Iso GCM2"), # "Linear", "Iso GCM", "Iso GCM2", "Iso CLS"
     # sigma = 0.2
   )
 
@@ -261,11 +261,11 @@ if (F) {
     if (w$zoomed==T) {
       ylim_b <- filter(p_data, stat=="bias" & Estimator=="Rearrangement")$value %>%
         abs() %>% max() %>% (function(x) { c(-1.2*x, 1.2*x) })
-      # ylim_b <- filter(p_data, stat=="bias" & Estimator=="Iso LS")$value %>%
+      # ylim_b <- filter(p_data, stat=="bias" & Estimator=="Iso CLS")$value %>%
       #   abs() %>% max() %>% (function(x) { c(-2*x, 2*x) })
-      ylim_v <- filter(p_data, stat=="var" & Estimator=="Iso LS")$value %>%
+      ylim_v <- filter(p_data, stat=="var" & Estimator=="Iso CLS")$value %>%
         max() %>% (function(x) { c(0, 2*x) })
-      ylim_m <- filter(p_data, stat=="mse" & Estimator=="Iso LS")$value %>%
+      ylim_m <- filter(p_data, stat=="mse" & Estimator=="Iso CLS")$value %>%
         max() %>% (function(x) { c(0, 2*x) })
     } else {
       ylim_b <- filter(p_data, stat=="bias")$value %>%
@@ -408,7 +408,7 @@ if (F) {
   ggplot(p_data, aes(x=value, color=reg_type)) +
     labs(
       title = unname(
-        latex2exp::TeX("$n^{1/3}(\\theta_n^{LS}-\\theta_n^{GCM})$")
+        latex2exp::TeX("$n^{1/3}(\\theta_n^{CLS}-\\theta_n^{GCM})$")
       ),
       color = "Estimator",
       x = NULL,
@@ -435,7 +435,7 @@ if (F) {
 
   # Estimate regression function
   res_gcm <- est_curve(dat, "Iso GCM2", return_Theta_n=T, return_cusum=T)
-  res_ls <- est_curve(dat, "Iso LS", return_Theta_n=T, return_cusum=T)
+  res_ls <- est_curve(dat, "Iso CLS", return_Theta_n=T, return_cusum=T)
   theta_gcm <- res_gcm$theta_n
   theta_ls <- res_ls$theta_n
   Theta_gcm <- res_gcm$Theta_n

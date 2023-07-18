@@ -107,16 +107,16 @@ if (cfg$which_sim=="density") {
       )
       theta_n <- function(x) { -1 * dGCM(Phi_n(x)) }
 
-    } else if (L$type=="LS") {
+    } else if (L$type=="CLS") {
 
-      LS <- simest::cvx.lse.reg(t=cusum$x, z=cusum$y)
+      CLS <- simest::cvx.lse.reg(t=cusum$x, z=cusum$y)
       pred_x <- seq(0, max(x), length.out=1000)
-      pred_y <- predict(LS, newdata=pred_x)
-      dLS <- Vectorize(function(x) {
-        index <- which.min(abs(x-LS$x.values))
-        return(LS$deriv[index])
+      pred_y <- predict(CLS, newdata=pred_x)
+      dCLS <- Vectorize(function(x) {
+        index <- which.min(abs(x-CLS$x.values))
+        return(CLS$deriv[index])
       })
-      theta_n <- function(x) { -1 * dLS(Phi_n(x)) }
+      theta_n <- function(x) { -1 * dCLS(Phi_n(x)) }
 
     } else {
       stop("Invalid type")
