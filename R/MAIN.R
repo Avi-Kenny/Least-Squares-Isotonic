@@ -10,9 +10,9 @@
 # Set global config
 cfg <- list(
   main_task = "run", # run update
-  which_sim = "regression", # "estimation" "edge" "testing" "Cox"
-  level_set_which = "level_set_regression_1",
-  num_sim = 1000,
+  which_sim = "dissertation", # regression density dissertation
+  level_set_which = "level_set_regression_2", # level_set_regression_1 level_set_density_1
+  num_sim = 3,
   pkgs = c("dplyr", "Iso", "fdrtool", "simest", "tidyr", "truncnorm",
            "modeest"),
   pkgs_nocluster = c("ggplot2"),
@@ -76,18 +76,31 @@ if (Sys.getenv("sim_run") %in% c("first", "")) {
 
   # Regression: main
   level_set_regression_1 <- list(
-    n = c(100,200,400,800), # 1600,3200
-    distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
-    theta_true = c("identity", "constant"), # "square"
-    # reg_type = c("Iso LS", "Iso GCM2"),
-    reg_type = c("Iso LS", "Iso GCM2", "Rearrangement"),
-    # reg_type = c("Linear", "Iso GCM", "Iso GCM2", "Iso LS", "difference"),
+    n = c(100,200,400,800,1600), # ,3200
+    distr_A = c("Unif(0,1)"), # "Unif(0,1)", "N(0.5,0.09)"
+    theta_true = c("identity"), # "identity", "square", "constant"
+    reg_type = c("Iso LS", "Iso GCM"), # "Linear", "Iso GCM", "Iso GCM2", "Iso LS"
     sigma = 0.2
   )
 
-  # Regression: difference between estimators
-  level_set_estimation_2 <- level_set_estimation_1
-  level_set_estimation_2$reg_type <- "difference"
+  # Regression: dissertation
+  level_set_regression_2 <- level_set_regression_1
+  level_set_regression_2$n <- c(100,200) # !!!!! TEMP
+  level_set_regression_2$reg_type <- NULL
+
+  # # Regression: difference between estimators
+  # level_set_regression_3 <- level_set_regression_1
+  # level_set_regression_3$reg_type <- "difference"
+
+  # Regression: main
+  level_set_density_1 <- list(
+    n = c(100,200,400,800), # 1600,3200
+    type = c("GCM", "LS")
+    # distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
+    # theta_true = c("identity", "constant"), # "square"
+    # reg_type = c("Iso LS", "Iso GCM2"), # "Linear", "Iso GCM", "Iso GCM2", "Iso LS"
+    # sigma = 0.2
+  )
 
   level_set <- get(cfg$level_set_which)
 
@@ -115,8 +128,8 @@ if (cfg$main_task=="run") {
         parallel = cfg$parallel,
         n_cores = cfg$n_cores,
         stop_at_error = cfg$stop_at_error,
-        # batch_levels = c("n", "distr_A"),
-        # return_batch_id = T,
+        batch_levels = c("n", "distr_A", "theta_true", "sigma"),
+        return_batch_id = T,
         # seed = 123, # !!!!!
         packages = cfg$pkgs
       )
@@ -177,6 +190,7 @@ if (F) {
 
   # Set this manually
   w <- list(
+    which_sim = cfg$which_sim,
     print_or_save = "print", # "print" "save"
     theta_true = "identity", # "identity" "constant"
     scaled = T,
@@ -207,54 +221,77 @@ if (F) {
   }
   summ <- do.call(SimEngine::summarize,
                   c(list(sim), summ_bias, summ_var, summ_mse))
-  summ %<>% rename("Estimator"=reg_type)
+  if (w$which_sim=="regression") { summ %<>% rename("Estimator"=reg_type) }
   summ$n_reps <- NULL
 
+  if (w$which_sim=="regression") {
+    cols <- c("level_id","n","distr_A","theta_true","Estimator","sigma")
+  } else if (w$which_sim=="density") {
+    cols <- c("level_id","n","type")
+  }
   p_data <- pivot_longer(
     data = summ,
-    cols = -c(level_id,n,distr_A,theta_true,Estimator,sigma),
+    cols = -cols,
     names_to = c("stat","point"),
     names_sep = "_"
   )
   p_data %<>% mutate(point=as.numeric(point))
 
-  # Add scaled bias/var/MSE
-  p_data %<>% mutate(
-    value2 = case_when(
-      theta_true=="identity" & stat %in% c("bias") ~ n^(1/3)*value,
-      theta_true=="identity" & stat %in% c("var","mse") ~ n^(2/3)*value,
-      theta_true=="constant" & stat %in% c("bias") ~ n^(1/2)*value,
-      theta_true=="constant" & stat %in% c("var","mse") ~ n^(1/1)*value
+  if (w$which_sim=="regression") {
+
+    # Add scaled bias/var/MSE
+    p_data %<>% mutate(
+      value2 = case_when(
+        theta_true=="identity" & stat %in% c("bias") ~ n^(1/3)*value,
+        theta_true=="identity" & stat %in% c("var","mse") ~ n^(2/3)*value,
+        theta_true=="constant" & stat %in% c("bias") ~ n^(1/2)*value,
+        theta_true=="constant" & stat %in% c("var","mse") ~ n^(1/1)*value
+      )
     )
-  )
 
-  # Manipulations specific to `w` plot config object
-  w$factor <- ifelse(!w$scaled, "", ifelse(
-    w$theta_true=="constant", "n^{1/2}", "n^{1/3}")
-  )
-  p_data %<>% filter(theta_true==w$theta_true)
-  if (w$scaled) {
-    p_data$value <- p_data$value2
+    # Manipulations specific to `w` plot config object
+    w$factor <- ifelse(!w$scaled, "", ifelse(
+      w$theta_true=="constant", "n^{1/2}", "n^{1/3}")
+    )
+    p_data %<>% filter(theta_true==w$theta_true)
+
+    if (w$scaled) { p_data$value <- p_data$value2 }
+
+    # Y axis limits
+    if (w$zoomed==T) {
+      ylim_b <- filter(p_data, stat=="bias" & Estimator=="Rearrangement")$value %>%
+        abs() %>% max() %>% (function(x) { c(-1.2*x, 1.2*x) })
+      # ylim_b <- filter(p_data, stat=="bias" & Estimator=="Iso LS")$value %>%
+      #   abs() %>% max() %>% (function(x) { c(-2*x, 2*x) })
+      ylim_v <- filter(p_data, stat=="var" & Estimator=="Iso LS")$value %>%
+        max() %>% (function(x) { c(0, 2*x) })
+      ylim_m <- filter(p_data, stat=="mse" & Estimator=="Iso LS")$value %>%
+        max() %>% (function(x) { c(0, 2*x) })
+    } else {
+      ylim_b <- filter(p_data, stat=="bias")$value %>%
+        abs() %>% max() %>% (function(x) { c(-1*x, x) })
+      ylim_v <- filter(p_data, stat=="var")$value %>%
+        max() %>% (function(x) { c(0, x) })
+      ylim_m <- filter(p_data, stat=="mse")$value %>%
+        max() %>% (function(x) { c(0, x) })
+    }
+
   }
 
-  # Y axis limits
-  if (w$zoomed==T) {
-    ylim_b <- filter(p_data, stat=="bias" & Estimator=="Rearrangement")$value %>%
-      abs() %>% max() %>% (function(x) { c(-1.2*x, 1.2*x) })
-    # ylim_b <- filter(p_data, stat=="bias" & Estimator=="Iso LS")$value %>%
-    #   abs() %>% max() %>% (function(x) { c(-2*x, 2*x) })
-    ylim_v <- filter(p_data, stat=="var" & Estimator=="Iso LS")$value %>%
-      max() %>% (function(x) { c(0, 2*x) })
-    ylim_m <- filter(p_data, stat=="mse" & Estimator=="Iso LS")$value %>%
-      max() %>% (function(x) { c(0, 2*x) })
-  } else {
-    ylim_b <- filter(p_data, stat=="bias")$value %>%
-      abs() %>% max() %>% (function(x) { c(-1*x, x) })
-    ylim_v <- filter(p_data, stat=="var")$value %>%
-      max() %>% (function(x) { c(0, x) })
-    ylim_m <- filter(p_data, stat=="mse")$value %>%
-      max() %>% (function(x) { c(0, x) })
-  }
+  # !!!!!
+  ggplot(
+    filter(p_data, stat=="bias"),
+    aes(x=point, y=value, color=type, group=type)
+  ) +
+    geom_line() +
+    facet_grid(cols=dplyr::vars(n)) +
+    theme(legend.position="bottom") +
+    labs(
+      # title = unname(latex2exp::TeX(paste0("$Bias(", w$factor,"\\theta_n)$, ",
+                                              # w$theta_true, " function"))),
+         # x = "A",
+         y = "Bias")
+
 
   # Bias plot
   # Export: 10" x 6"

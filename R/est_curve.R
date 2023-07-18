@@ -27,17 +27,6 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     theta_n <- function(x) { cf[1] + cf[2]*x + cf[3]*x^2 }
   }
 
-  # Convex rearrangement
-  if (type=="Rearrangement") {
-    theta_n <- approxfun(
-      x = sort(dat$a),
-      y = sort(dat$y),
-      method = "constant",
-      rule = 2,
-      f = 0
-    )
-  }
-
   if (type %in% c("Iso GCM", "Iso GCM2", "Iso LS")) {
 
     # Estimate primitive
@@ -73,7 +62,7 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
     }
 
     # Isotonic regression estimator, using Iso package
-    # Note: this estimator jumps at the midpoint
+    # Note: this estimator jumps at the midpoint between two points
     if (type=="Iso GCM2") {
       dat <- arrange(dat,a)
       theta_n <- Vectorize(function(x) {
@@ -110,33 +99,35 @@ est_curve <- function(dat, type, return_Theta_n=F, return_cusum=F) {
   # Temporary: look at difference between two estimators
   if (type=="difference") {
 
-    Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
-    Phi_n <- ecdf(dat$a)
-    cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
-    LS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
-    pred_x <- round(seq(0,1,0.001),3)
-    pred_y <- predict(LS, newdata=pred_x)
-    dLS <- Vectorize(function(x) {
-      width <- 0.01
-      x1 <- x - width/2; x2 <- x + width/2;
-      if (x1<0) { x2 <- x2 - x1; x1 <- 0; }
-      if (x2>1) { x1 <- x1 - x2 + 1; x2 <- 1; }
-      x1 <- round(x1,3); x2 <- round(x2,3);
-      ind1 <- which(pred_x==x1); ind2 <- which(pred_x==x2);
-      y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
-      return((y2-y1)/width)
-    })
-    theta_n1 <- function(x) { dLS(Phi_n(x)) }
+    # !!!!! Check this code to ensure consistency with above
 
-    # Iso GCM2
-    dat <- arrange(dat,a)
-    theta_n2 <- Vectorize(function(x) {
-      index <- which.min(abs(x-dat$a))
-      pred <- Iso::pava(y=dat$y)
-      return(pred[index])
-    })
-
-    theta_n <- function (x) { theta_n1(x) - theta_n2(x) }
+    # Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
+    # Phi_n <- ecdf(dat$a)
+    # cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
+    # LS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+    # pred_x <- round(seq(0,1,0.001),3)
+    # pred_y <- predict(LS, newdata=pred_x)
+    # dLS <- Vectorize(function(x) {
+    #   width <- 0.01
+    #   x1 <- x - width/2; x2 <- x + width/2;
+    #   if (x1<0) { x2 <- x2 - x1; x1 <- 0; }
+    #   if (x2>1) { x1 <- x1 - x2 + 1; x2 <- 1; }
+    #   x1 <- round(x1,3); x2 <- round(x2,3);
+    #   ind1 <- which(pred_x==x1); ind2 <- which(pred_x==x2);
+    #   y1 <- pred_y[ind1]; y2 <- pred_y[ind2];
+    #   return((y2-y1)/width)
+    # })
+    # theta_n1 <- function(x) { dLS(Phi_n(x)) }
+    #
+    # # Iso GCM2
+    # dat <- arrange(dat,a)
+    # theta_n2 <- Vectorize(function(x) {
+    #   index <- which.min(abs(x-dat$a))
+    #   pred <- Iso::pava(y=dat$y)
+    #   return(pred[index])
+    # })
+    #
+    # theta_n <- function (x) { theta_n1(x) - theta_n2(x) }
 
   }
 
