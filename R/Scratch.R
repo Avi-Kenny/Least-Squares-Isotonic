@@ -1,3 +1,55 @@
+######################.
+###### Debugging #####
+######################.
+
+if (F) {
+
+  L <- list(n=40, distr_A="Unif(0,1)", theta_true="identity", sigma=0.2)
+  dat <- generate_data(n=L$n, distr_A=L$distr_A,
+                           theta_true=L$theta_true, sigma=L$sigma)$dat
+
+  Gamma_n <- Vectorize(function(x) { mean(dat$y * as.integer(dat$a<=x)) })
+  Phi_n <- ecdf(dat$a)
+  cusum <- arrange(data.frame(x=c(0,Phi_n(dat$a)), y=c(0,Gamma_n(dat$a))), x)
+
+  # Compute the GCM
+  GCM <- gcmlcm(x=cusum$x, y=cusum$y, type="gcm")
+  GCM_fn <- approxfun(
+    x = GCM$x.knots,
+    y = GCM$y.knots,
+    method = "linear",
+    rule = 2
+  )
+
+  # Compute CLS
+  CLS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+  pred_x <- round(seq(0,1,0.001),3)
+  pred_y <- predict(CLS, newdata=pred_x)
+  CLS_fn <- Vectorize(function(x) {
+    index <- which.min(abs(x-pred_x))
+    return(pred_y[index])
+  })
+
+  # ggplot(data.frame(x=dat$a, y=dat$y), aes(x=x, y=y)) + geom_point() + labs(title="orig data")
+  grid <- seq(0,1,0.001)
+  plot_df <- data.frame(
+    x = rep(grid,2),
+    y = c(GCM_fn(grid), CLS_fn(grid)),
+    which = rep(c("GCM", "CLS"), each=length(grid))
+  )
+  ggplot(plot_df, aes(x=x, y=y, group=which, color=which)) +
+    geom_line() +
+    geom_point(
+      aes(x=x, y=y),
+      data = data.frame(x=cusum$x, y=cusum$y),
+      alpha = 0.5,
+      inherit.aes = F
+    ) +
+    labs(title="cusum")
+  print(CLS_fn(0.5)-GCM_fn(0.5))
+
+}
+
 ######################################################.
 ###### Mini simulation to investigate edge issue #####
 ######################################################.

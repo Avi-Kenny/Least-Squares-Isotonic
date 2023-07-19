@@ -38,6 +38,9 @@ if (cfg$which_sim=="dissertation") {
 
   one_simulation <- function() {
 
+    # # !!!!! Testing
+    # L <- list(n=40, distr_A="Unif(0,1)", theta_true="identity", sigma=0.2) # !!!!!
+
     # Generate dataset
     batch({
       dat_obj <- generate_data(n=L$n, distr_A=L$distr_A,
@@ -47,14 +50,21 @@ if (cfg$which_sim=="dissertation") {
     theta_0 <- dat_obj$theta_0
 
     # Estimate regression function
-    theta_n <- est_curve(dat, "Iso GCM")$theta_n
-    theta_s <- est_curve(dat, "Iso CLS")$theta_n
+    est_gcm <- est_curve(dat, "Iso GCM", return_Gamma_n=T)
+    theta_n <- est_gcm$theta_n
+    Gamma_n <- est_gcm$Gamma_n
+    est_cls <- est_curve(dat, "Iso CLS", return_Gamma_n=T)
+    theta_s <- est_cls$theta_n
+    Gamma_s <- est_cls$Gamma_n
 
     # Get estimated values
     sim_res <- list()
     for (val in round(seq(0,1,0.02),2)) {
-      sim_res[[paste0("est_",format(val,nsmall=2))]] <- theta_n(val)
-      sim_res[[paste0("theta_",format(val,nsmall=2))]] <- theta_0(val)
+      sim_res[[paste0("theta_n_",format(val,nsmall=2))]] <- theta_n(val)
+      sim_res[[paste0("theta_s_",format(val,nsmall=2))]] <- theta_s(val)
+      sim_res[[paste0("theta_0_",format(val,nsmall=2))]] <- theta_0(val)
+      sim_res[[paste0("Gamma_n_",format(val,nsmall=2))]] <- Gamma_n(val)
+      sim_res[[paste0("Gamma_s_",format(val,nsmall=2))]] <- Gamma_s(val)
     }
 
     return(sim_res)
