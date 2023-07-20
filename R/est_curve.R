@@ -7,7 +7,8 @@
 #' @param return_cusum Boolean; return CUSUM diagram
 #' @return A regression estimator function (along with a primitive estimator,
 #'     when applicable)
-est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F) {
+est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F,
+                      return_GCM=F) {
 
   # Set placeholders
   Gamma_n <- NA
@@ -74,13 +75,14 @@ est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F) {
 
     # Take the convex least squares line and its derivative
     if (type=="Iso CLS") {
-      CLS <- cvx.lse.reg(t=cusum$x, z=cusum$y)
+      CLS <- simest::cvx.lse.reg(t=cusum$x, z=cusum$y)
       pred_x <- round(seq(0,1,0.001),3)
       pred_y <- predict(CLS, newdata=pred_x)
       CLS_fn <- Vectorize(function(x) {
         index <- which.min(abs(x-pred_x))
         return(pred_y[index])
       })
+      Gamma_n <- GCM_fn <- CLS_fn
       dCLS <- Vectorize(function(x) {
         width <- 0.01
         x1 <- x - width/2; x2 <- x + width/2;
@@ -125,6 +127,7 @@ est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F) {
 
   res <- list(theta_n=theta_n)
   if (return_Gamma_n) { res$Gamma_n <- Gamma_n }
+  if (return_GCM) { res$GCM <- GCM_fn }
   if (return_cusum) { res$cusum <- cusum }
   return(res)
 

@@ -10,9 +10,9 @@
 # Set global config
 cfg <- list(
   main_task = "run", # run update
-  which_sim = "dissertation", # regression density dissertation
-  level_set_which = "level_set_regression_2", # level_set_regression_1 level_set_density_1
-  num_sim = 1000,
+  which_sim = "dissertation (regression)", # "regression" "density" "dissertation (regression)" "dissertation (density)"
+  level_set_which = "level_set_regression_2", # level_set_regression_1 level_set_regression_2 level_set_density_1 level_set_density_2
+  num_sim = 10000,
   pkgs = c("dplyr", "Iso", "fdrtool", "simest", "tidyr", "truncnorm",
            "modeest"),
   pkgs_nocluster = c("ggplot2", "ChernoffDist"),
@@ -93,13 +93,13 @@ if (Sys.getenv("sim_run") %in% c("first", "")) {
 
   # Regression: main
   level_set_density_1 <- list(
-    n = c(100,200,400,800), # 1600,3200
+    n = c(100,200,400,800,1600,3200),
     type = c("GCM", "CLS")
-    # distr_A = c("Unif(0,1)", "N(0.5,0.09)"),
-    # theta_true = c("identity", "constant"), # "square"
-    # reg_type = c("Iso CLS", "Iso GCM2"), # "Linear", "Iso GCM", "Iso GCM2", "Iso CLS"
-    # sigma = 0.2
   )
+
+  # Regression: dissertation
+  level_set_density_2 <- level_set_density_1
+  level_set_density_2$type <- NULL
 
   level_set <- get(cfg$level_set_which)
 
@@ -127,8 +127,8 @@ if (cfg$main_task=="run") {
         parallel = cfg$parallel,
         n_cores = cfg$n_cores,
         stop_at_error = cfg$stop_at_error,
-        batch_levels = c("n", "distr_A", "theta_true", "sigma"),
-        return_batch_id = T,
+        # batch_levels = c("n", "distr_A", "theta_true", "sigma"),
+        # return_batch_id = T,
         # seed = 123, # !!!!!
         packages = cfg$pkgs
       )
@@ -232,7 +232,7 @@ if (F) {
     cols <- c("level_id","n","distr_A","theta_true","Estimator","sigma")
   } else if (w$which_sim=="density") {
     cols <- c("level_id","n","type")
-  } else if (w$which_sim=="dissertation") {
+  } else if (w$which_sim=="dissertation (regression)") {
     cols <- c("level_id","n","distr_A","theta_true","sigma")
   }
   p_data <- pivot_longer(
@@ -243,7 +243,7 @@ if (F) {
   )
   p_data %<>% mutate(point=as.numeric(point))
 
-  if (w$which_sim %in% c("regression", "dissertation")) {
+  if (w$which_sim %in% c("regression", "dissertation (regression)")) {
 
     # Add scaled bias/var
     p_data %<>% mutate(
@@ -340,9 +340,15 @@ if (F) {
 
 if (F) {
 
+  # Set this manually
+  sim_type <- "density"
+
   # Create plotting dataset 1
-  p_data1 <- sim$results %>%
-    filter(theta_true=="identity" & distr_A=="Unif(0,1)") %>%
+  p_data1 <- sim$results
+  if (sim_type=="regression") {
+    p_data1 %<>% filter(theta_true=="identity" & distr_A=="Unif(0,1)")
+  }
+  p_data1 %<>%
     subset(select=c(n, theta_n_0.30, theta_s_0.30, theta_0_0.30)) %>%
     mutate(
       GCM = n^(1/3)*(theta_n_0.30-theta_0_0.30),
@@ -355,16 +361,23 @@ if (F) {
     )
 
   # Plot of n^(1/3) (theta_n-theta_0)
-  sigma <- sim$results$sigma[1]
-  n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
-  tau_0 <- (4*sigma^2)^(1/3)
+  if (sim_type=="regression") {
+    sigma <- sim$results$sigma[1]
+    n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
+    tau_0 <- (4*sigma^2)^(1/3)
+    grid <- seq(-1,1,0.01)
+  } else if (sim_type=="density") {
+    point <- 0.3
+    tau_0 <- (4*exp(-2*point))^(1/3) # !!!!!
+    grid <- seq(-2.2,2.2,0.01)
+  }
   ggplot(p_data1, aes(x=value, color=Estimator)) +
     geom_density() +
     geom_area(
       aes(x=x, y=y),
       data = data.frame(
-        x = seq(-1,1,0.01),
-        y = dChern(seq(-1,1,0.01)/tau_0)/tau_0
+        x = grid,
+        y = dChern(grid/tau_0)/tau_0
       ),
       inherit.aes = F,
       alpha = 0.2
@@ -396,8 +409,11 @@ if (F) {
     )
 
   # Create plotting dataset 3
-  p_data3 <- sim$results %>%
-    filter(theta_true=="identity" & distr_A=="Unif(0,1)") %>%
+  p_data3 <- sim$results
+  if (sim_type=="regression") {
+    p_data3 %<>% filter(theta_true=="identity" & distr_A=="Unif(0,1)")
+  }
+  p_data3 %<>%
     subset(select=c(n, Gamma_n_0.30, Gamma_s_0.30)) %>%
     mutate(diff = n^(1/2)*(Gamma_n_0.30-Gamma_s_0.30)) %>%
     subset(select=c(n, diff))
@@ -410,6 +426,48 @@ if (F) {
     labs(
       title = unname(latex2exp::TeX(
         "$n^{1/2}(\\Gamma_n(0.3)-\\Gamma_n^*(0.3))$"
+      )),
+      x = NULL,
+      y = "Estimated density"
+    )
+
+  # !!!!! TEMP
+  {
+    p_data3 <- sim$results
+    p_data3 %<>%
+      subset(select=c(n, Gamma_n_0.80, Gamma_s_0.80)) %>%
+      mutate(diff = n^(1/2)*(Gamma_n_0.80-Gamma_s_0.80)) %>%
+      subset(select=c(n, diff))
+
+    # Plot of n^(1/2) (Gamma_n-Gamma_n*)
+    n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
+    ggplot(p_data3, aes(x=diff)) +
+      geom_density(fill="forestgreen", alpha=0.5, color="white") +
+      facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
+      labs(
+        title = unname(latex2exp::TeX(
+          "$n^{1/2}(\\Gamma_n(0.8)-\\Gamma_n^*(0.8))$"
+        )),
+        x = NULL,
+        y = "Estimated density"
+      )
+    }
+
+  # Create plotting dataset 4
+  p_data4 <- sim$results %>%
+    filter(theta_true=="identity" & distr_A=="Unif(0,1)") %>%
+    subset(select=c(n, GCM_n_0.30, GCM_s_0.30)) %>%
+    mutate(diff = n^(1/2)*(GCM_n_0.30-GCM_s_0.30)) %>%
+    subset(select=c(n, diff))
+
+  # Plot of n^(1/2) (Gamma_n-Gamma_n*)
+  n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
+  ggplot(p_data4, aes(x=diff)) +
+    geom_density(fill="forestgreen", alpha=0.5, color="white") +
+    facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
+    labs(
+      title = unname(latex2exp::TeX(
+        "$n^{1/2}(GCM(\\Gamma_n)(0.3)-GCM(\\Gamma_n)^*(0.3))$"
       )),
       x = NULL,
       y = "Estimated density"
