@@ -10,8 +10,8 @@
 # Set global config
 cfg <- list(
   main_task = "run", # run update
-  which_sim = "dissertation (regression)", # "regression" "density" "dissertation (regression)" "dissertation (density)"
-  level_set_which = "level_set_regression_2", # level_set_regression_1 level_set_regression_2 level_set_density_1 level_set_density_2
+  which_sim = "dissertation (density)", # "regression" "density" "dissertation (regression)" "dissertation (density)"
+  level_set_which = "level_set_density_2", # level_set_regression_1 level_set_regression_2 level_set_density_1 level_set_density_2
   num_sim = 10000,
   pkgs = c("dplyr", "Iso", "fdrtool", "simest", "tidyr", "truncnorm",
            "modeest"),
@@ -189,11 +189,11 @@ if (F) {
 
   # Set this manually
   w <- list(
-    which_sim = cfg$which_sim,
+    sim_type = "regression",
     print_or_save = "save", # "print" "save"
     theta_true = "identity", # "identity" "constant"
-    scaled = T,
-    zoomed = T
+    scaled = F,
+    zoomed = F
   )
 
   # Summarize results
@@ -222,18 +222,27 @@ if (F) {
       name = paste0("var_s__",m),
       x = paste0("theta_s_",m)
     )
+    summ_sd[[length(summ_sd)+1]] <- list(
+      stat = "sd",
+      name = paste0("sd_n__",m),
+      x = paste0("theta_n_",m)
+    )
+    summ_sd[[length(summ_sd)+1]] <- list(
+      stat = "sd",
+      name = paste0("sd_s__",m),
+      x = paste0("theta_s_",m)
+    )
   }
   summ <- do.call(SimEngine::summarize,
-                  c(list(sim), summ_bias, summ_var))
-  if (w$which_sim=="regression") { summ %<>% rename("Estimator"=reg_type) }
+                  c(list(sim), summ_bias, summ_var, summ_sd))
+  summ %<>% filter(distr_A=="Unif(0,1)")
+  # if (w$sim_type=="regression") { summ %<>% rename("Estimator"=reg_type) }
   summ$n_reps <- NULL
 
-  if (w$which_sim=="regression") {
-    cols <- c("level_id","n","distr_A","theta_true","Estimator","sigma")
-  } else if (w$which_sim=="density") {
-    cols <- c("level_id","n","type")
-  } else if (w$which_sim=="dissertation (regression)") {
+  if (w$sim_type=="regression") {
     cols <- c("level_id","n","distr_A","theta_true","sigma")
+  } else if (w$sim_type=="density") {
+    cols <- c("level_id","n","type")
   }
   p_data <- pivot_longer(
     data = summ,
@@ -243,20 +252,20 @@ if (F) {
   )
   p_data %<>% mutate(point=as.numeric(point))
 
-  if (w$which_sim %in% c("regression", "dissertation (regression)")) {
+  if (w$sim_type=="regression") {
 
     # Add scaled bias/var
     p_data %<>% mutate(
       Estimator = case_when(
-        stat %in% c("bias_n", "var_n") ~ "GCM",
-        stat %in% c("bias_s", "var_s") ~ "CLS",
+        stat %in% c("bias_n", "var_n", "sd_n") ~ "GCM",
+        stat %in% c("bias_s", "var_s", "sd_s") ~ "CLS",
         TRUE ~ "Error"
       ),
       stat = substr(stat,1,1),
       value2 = case_when(
-        theta_true=="identity" & stat=="b" ~ n^(1/3)*value,
+        theta_true=="identity" & stat %in% c("b", "s") ~ n^(1/3)*value,
         theta_true=="identity" & stat=="v" ~ n^(2/3)*value,
-        theta_true=="constant" & stat=="b" ~ n^(1/2)*value,
+        theta_true=="constant" & stat %in% c("b", "s") ~ n^(1/2)*value,
         theta_true=="constant" & stat=="v" ~ n*value
       )
     )
@@ -276,14 +285,20 @@ if (F) {
         abs() %>% max() %>% (function(x) { c(-2*x, 2*x) })
       ylim_v <- filter(p_data, stat=="v" & Estimator=="CLS")$value %>%
         max() %>% (function(x) { c(0, 2*x) })
+      ylim_s <- filter(p_data, stat=="s" & Estimator=="CLS")$value %>%
+        max() %>% (function(x) { c(0, 2*x) })
     } else {
       ylim_b <- filter(p_data, stat=="b")$value %>%
         abs() %>% max() %>% (function(x) { c(-1*x, x) })
       ylim_v <- filter(p_data, stat=="v")$value %>%
         max() %>% (function(x) { c(0, x) })
+      ylim_s <- filter(p_data, stat=="s")$value %>%
+        max() %>% (function(x) { c(0, x) })
     }
 
   }
+
+  n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
 
   # Bias plot
   # Export: 10" x 6"
@@ -293,7 +308,8 @@ if (F) {
     aes(x=point, y=value, color=Estimator, group=Estimator)
   ) +
     geom_line() +
-    facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
+    # facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
+    facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
     theme(legend.position="bottom") +
     ylim(ylim_b) +
     labs(title = unname(latex2exp::TeX(paste0("$Bias(", w$factor,"\\theta_n)$, ",
@@ -308,7 +324,8 @@ if (F) {
     aes(x=point, y=value, color=Estimator, group=Estimator)
   ) +
     geom_line() +
-    facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
+    # facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
+    facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
     theme(legend.position="bottom") +
     ylim(ylim_v) +
     labs(title = unname(latex2exp::TeX(paste0("$Var(", w$factor,"\\theta_n)$, ",
@@ -316,12 +333,28 @@ if (F) {
          x = "X",
          y = "Variance")
 
+  # Standard deviation plot
+  # Export: 10" x 6"
+  plot_s <- ggplot(
+    filter(p_data, stat=="s"),
+    aes(x=point, y=value, color=Estimator, group=Estimator)
+  ) +
+    geom_line() +
+    # facet_grid(rows=dplyr::vars(distr_A), cols=dplyr::vars(n)) +
+    facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
+    theme(legend.position="bottom") +
+    ylim(ylim_s) +
+    labs(title = unname(latex2exp::TeX(paste0("$SD(", w$factor,"\\theta_n)$, ",
+                                              w$theta_true, " function"))),
+         x = "X",
+         y = "Standard deviation")
+
   if (w$print_or_save=="print") {
-    for (p in c("b", "v")) { print(get(paste0("plot_",p))) }
+    for (p in c("b", "v", "s")) { print(get(paste0("plot_",p))) }
   } else if (w$print_or_save=="save") {
-    for (p in c("b", "v")) {
+    for (p in c("b", "v", "s")) {
       sc <- ifelse(w$scaled, "scaled", "unscaled")
-      wh <- ifelse(p=="b", "Bias", "Variance")
+      wh <- ifelse(p=="b", "Bias", ifelse(p=="v", "Variance", "SD"))
       zm <- ifelse(w$zoomed, "zoomed", "unzoomed")
       ggsave(
         filename = paste0(wh, " (", w$theta_true, ",", sc, ",", zm, ").pdf"),
@@ -361,9 +394,9 @@ if (F) {
     )
 
   # Plot of n^(1/3) (theta_n-theta_0)
+  n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
   if (sim_type=="regression") {
     sigma <- sim$results$sigma[1]
-    n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
     tau_0 <- (4*sigma^2)^(1/3)
     grid <- seq(-1,1,0.01)
   } else if (sim_type=="density") {
@@ -432,7 +465,7 @@ if (F) {
     )
 
   # !!!!! TEMP
-  {
+  if (F) {
     p_data3 <- sim$results
     p_data3 %<>%
       subset(select=c(n, Gamma_n_0.80, Gamma_s_0.80)) %>%
@@ -460,7 +493,7 @@ if (F) {
     mutate(diff = n^(1/2)*(GCM_n_0.30-GCM_s_0.30)) %>%
     subset(select=c(n, diff))
 
-  # Plot of n^(1/2) (Gamma_n-Gamma_n*)
+  # Plot of n^(1/2) (GCM(Gamma_n)-GCM(Gamma_n*))
   n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
   ggplot(p_data4, aes(x=diff)) +
     geom_density(fill="forestgreen", alpha=0.5, color="white") +
@@ -472,6 +505,39 @@ if (F) {
       x = NULL,
       y = "Estimated density"
     )
+
+  # Create plotting dataset 5
+  p_data5 <- filter(sim$results, rep_id<=1000)
+  if (sim_type=="regression") {
+    p_data5 %<>% filter(theta_true=="identity" & distr_A=="Unif(0,1)")
+  }
+  p_data5 %<>%
+    subset(select=c(n, theta_n_0.30, theta_s_0.30)) %>%
+    rename(
+      "GCM" = theta_n_0.30,
+      "CLS" = theta_s_0.30
+    )
+
+  # Plot of n^(1/3) (theta_n-theta_0)
+  n_levels <- paste("n =", 100*c(1,2,4,8,16,32))
+  ggplot(p_data5, aes(x=GCM, y=CLS)) +
+    geom_abline(slope=1, intercept=0, color="orange") +
+    geom_point(alpha=0.1, pch=16) +
+    geom_point(
+      data = data.frame(CLS=0.3, GCM=0.3),
+      color = "maroon",
+      pch = 8,
+      size = 2
+    ) +
+    facet_wrap(~factor(paste("n =",n), levels=n_levels)) +
+    labs(
+      title = unname(latex2exp::TeX(
+        "$\\theta_n$ (GCM) vs. $\\theta_n^* (CLS)$"
+      )),
+      x = "GCM",
+      y = "CLS"
+    )
+    # theme(legend.position="bottom")
 
   # !!!!! TEMP: Gamma_n-Gamma_n* plots
   if (F) {
@@ -501,28 +567,6 @@ if (F) {
       labs(title=unname(latex2exp::TeX("$n^{1/2}(\\Gamma_n(0.50)-\\Gamma_n^*(0.50))$")),x=NULL,y="Estimated density")
 
   }
-
-
-
-
-
-
-
-
-
-
-  # # Plot of n^(1/3) (theta_n-theta_s)
-  # ggplot(p_data, aes(x=value, color=reg_type)) +
-  #   labs(
-  #     title = unname(
-  #       latex2exp::TeX("$n^{1/3}(\\theta_n^{CLS}-\\theta_n^{GCM})$")
-  #     ),
-  #     color = "Estimator",
-  #     x = NULL,
-  #     y = NULL) +
-  #   geom_density() +
-  #   facet_grid(rows=dplyr::vars(point), cols=dplyr::vars(n))
-  #   # xlim(-1,1)
 
 }
 
