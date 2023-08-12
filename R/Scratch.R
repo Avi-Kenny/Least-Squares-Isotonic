@@ -1,3 +1,75 @@
+################################.
+###### New mini-simulation #####
+################################.
+
+if (F) {
+
+  # Note: takes about 35 seconds to run
+
+  library(ggplot2)
+  library(magrittr)
+  library(dplyr)
+
+  sample_size <- c(6400,3200,1600,800,400,200,100,50)
+  n_reps <- 1000
+  point <- 0.5
+  v_ss <- rep(NA, length(sample_size)*n_reps)
+  v_gcm <- v_gamma <- v_ss
+  j <- 0
+  for (ss in sample_size) {
+    for (i in c(1:n_reps)) {
+
+      x <- rbeta(n=ss, shape1=5, shape2=1)
+      Gamma_n <- ecdf(x)
+      cusum <- dplyr::arrange(data.frame(x=c(0,x), y=c(0,Gamma_n(x))), x)
+
+      tryCatch(
+        expr = {
+          GCM <- fdrtool::gcmlcm(x=cusum$x, y=cusum$y, type="gcm")
+          GCM_fn <- approxfun(
+            x = GCM$x.knots,
+            y = GCM$y.knots,
+            method = "linear",
+            rule = 2
+          )
+
+          index <- i + j
+          v_ss[index] <- ss
+          v_gcm[index] <- GCM_fn(point)
+          v_gamma[index] <- Gamma_n(point)
+        },
+        error = function(e) {}
+      )
+
+    }
+    j <- j + n_reps
+  }
+
+  # KDE plots of n^(1/2)*(gamma-gcm), by sample size
+  df <- data.frame(n=v_ss, gcm=v_gcm, gamma=v_gamma) %>%
+    mutate(scaled_diff = n^(1/2)*(gamma-gcm)) %>%
+    filter(!is.na(n))
+  ggplot(df, aes(x=scaled_diff)) +
+    geom_density(color="white", fill="forestgreen", alpha=0.6) +
+    facet_wrap(~n, ncol=4)
+
+  # Diagnostic plot: cusum, Gamma, GCM (for a single realization)
+  grid <- seq(0,1,0.001)
+  df_plot <- data.frame(
+    x = rep(grid, 2),
+    y = c(Gamma_n(grid), GCM_fn(grid)),
+    which = rep(c("Gamma_n", "GCM"), each=length(grid))
+  )
+  ggplot(df_plot, aes(x=x, y=y, color=which)) +
+    geom_line() +
+    geom_point(
+      data = data.frame(x=cusum$x, y=cusum$y),
+      color = "forestgreen",
+      alpha = 0.5
+    )
+
+}
+
 ######################.
 ###### Debugging #####
 ######################.

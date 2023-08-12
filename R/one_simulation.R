@@ -85,11 +85,11 @@ if (cfg$which_sim=="density") {
 
   one_simulation <- function() {
 
-    # Generate data from an exponential distribution
-    x <- rexp(n=L$n, rate=1)
+    # Generate data from a Beta(1,5) distribution
+    x <- rbeta(n=L$n, shape1=1, shape2=5)
 
     # True density function
-    theta_0 <- function(x) { dexp(x=x, rate=1) }
+    theta_0 <- function(x) { dbeta(x=x, shape1=1, shape2=5) }
 
     # Estimate density
     {
@@ -157,11 +157,11 @@ if (cfg$which_sim=="dissertation (density)") {
 
   one_simulation <- function() {
 
-    # Generate data from an exponential distribution
-    x <- rexp(n=L$n, rate=1)
+    # Generate data from a Beta(1,5) distribution
+    x <- rbeta(n=L$n, shape1=1, shape2=5)
 
     # True density function
-    theta_0 <- function(x) { dexp(x=x, rate=1) }
+    theta_0 <- function(x) { dbeta(x=x, shape1=1, shape2=5) }
 
     # Estimate density
     {
