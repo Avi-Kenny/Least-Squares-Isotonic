@@ -100,29 +100,6 @@ est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F,
       # })
     }
 
-    # !!!!! QA
-    if (F) {
-
-      ggplot(data.frame(x=dat$a, y=dat$y), aes(x=x, y=y)) + geom_point() + labs(title="orig data")
-
-      grid <- seq(0,1,0.001)
-      plot_df <- data.frame(
-        x = rep(grid,2),
-        y = c(GCM_fn(grid), CLS_fn(grid)),
-        which = rep(c("GCM", "CLS"), each=length(grid))
-      )
-      ggplot(plot_df, aes(x=x, y=y, group=which, color=which)) +
-        geom_line() +
-        geom_point(
-          aes(x=x, y=y),
-          data = data.frame(x=cusum$x, y=cusum$y),
-          alpha = 0.5,
-          inherit.aes = F
-        ) +
-        labs(title="cusum")
-
-    }
-
   }
 
   res <- list(theta_n=theta_n)
