@@ -8,11 +8,10 @@
 #' @return A regression estimator function (along with a primitive estimator,
 #'     when applicable)
 est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F,
-                      return_GCM=F) {
+                      return_GCM=F, return_CLS=F) {
 
   # Set placeholders
-  Gamma_n <- NA
-  cusum <- NA
+  Gamma_n <- GCM_fn <- cusum <- NA
 
   # Parametric (linear)
   if (type=="Linear") {
@@ -82,7 +81,6 @@ est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F,
         index <- which.min(abs(x-pred_x))
         return(pred_y[index])
       })
-      Gamma_n <- GCM_fn <- CLS_fn
       dCLS <- Vectorize(function(x) {
         width <- 0.01
         x1 <- x - width/2; x2 <- x + width/2;
@@ -105,6 +103,7 @@ est_curve <- function(dat, type, return_Gamma_n=F, return_cusum=F,
   res <- list(theta_n=theta_n)
   if (return_Gamma_n) { res$Gamma_n <- Gamma_n }
   if (return_GCM) { res$GCM <- GCM_fn }
+  if (return_CLS) { res$CLS <- CLS_fn }
   if (return_cusum) { res$cusum <- cusum }
   return(res)
 

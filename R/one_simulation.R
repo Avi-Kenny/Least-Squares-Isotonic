@@ -52,10 +52,10 @@ if (cfg$which_sim=="dissertation (regression)") {
     theta_n <- est_gcm$theta_n
     Gamma_n <- est_gcm$Gamma_n
     GCM_n <- est_gcm$GCM
-    est_cls <- est_curve(dat, "Iso CLS", return_Gamma_n=T, return_GCM=T)
+    est_cls <- est_curve(dat, "Iso CLS", return_CLS=T)
     theta_s <- est_cls$theta_n
-    Gamma_s <- est_cls$Gamma_n
-    GCM_s <- est_cls$GCM
+    Gamma_s <- est_cls$CLS
+    GCM_s <- est_cls$CLS # CLS equal to the GCM because it is already convex
 
     # Get estimated values
     sim_res <- list()

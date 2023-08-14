@@ -582,28 +582,35 @@ if (F) {
 if (F) {
 
   # Generate dataset
-  dat_obj <- generate_data(n=25, distr_A="Unif(0,1)",
-                           theta_true="identity", sigma=0.5) # !!!!! identity
+  set.seed(180)
+  dat_obj <- generate_data(n=20, distr_A="Unif(0,1)",
+                           theta_true="identity", sigma=1) # !!!!! identity
   dat <- dat_obj$dat
   theta_0 <- dat_obj$theta_0
 
   # Estimate regression function
   res_gcm <- est_curve(dat, "Iso GCM2", return_Gamma_n=T, return_cusum=T,
                        return_GCM=T)
-  res_ls <- est_curve(dat, "Iso CLS", return_Gamma_n=T, return_cusum=T)
+  res_ls <- est_curve(dat, "Iso CLS", return_CLS=T)
   theta_gcm <- res_gcm$theta_n
   theta_ls <- res_ls$theta_n
-  Gamma_gcm <- res_gcm$Gamma_n
-  Gamma_ls <- res_ls$Gamma_n
+  Gamma_gcm <- res_gcm$GCM
+  Gamma_ls <- res_ls$CLS
   cusum <- res_gcm$cusum
 
   # Create plot: theta_n
+  which_plot <- 1 # c(1,2,3)
   grid <- seq(0,1,0.01)
   df_plot1 <- data.frame(
     x = rep(grid, 3),
     y = c(theta_gcm(grid), theta_ls(grid), theta_0(grid)),
     which = rep(c("theta_n (GCM)", "theta_n (CLS)", "theta_0"), each=length(grid))
   )
+  if (which_plot==1) {
+    df_plot1 %<>% filter(which=="theta_0")
+  } else if (which_plot==2) {
+    df_plot1 %<>% filter(which!="theta_n (CLS)")
+  }
   ggplot(df_plot1, aes(x=x, y=y, color=which)) +
     geom_line() +
     geom_point(
@@ -612,18 +619,20 @@ if (F) {
       inherit.aes=F,
       alpha=0.5
     ) +
-    scale_color_manual(values=c("theta_n (CLS)"="deepskyblue",
-                                "theta_n (GCM)"="salmon",
+    scale_color_manual(values=c("theta_n (CLS)"="salmon",
+                                "theta_n (GCM)"="deepskyblue",
                                 "theta_0"="darkolivegreen4")) +
     labs(color="Function", x="X", y="Y") +
     theme(legend.position="bottom")
 
   # Create plot: Gamma_n
+  which_plot <- 2 # c(1,2)
   df_plot2 <- data.frame(
     x = rep(grid, 2),
     y = c(Gamma_gcm(grid), Gamma_ls(grid)),
     which = rep(c("GCM", "CLS"), each=length(grid))
   )
+  if (which_plot==1) { df_plot2 %<>% filter(which=="GCM") }
   ggplot(df_plot2, aes(x=x, y=y, color=which)) +
     geom_line() +
     geom_point(
@@ -632,9 +641,9 @@ if (F) {
       inherit.aes=F,
       alpha=0.5
     ) +
-    scale_color_manual(values=c("CLS"="deepskyblue",
-                                "GCM"="salmon")) +
-    labs(color="Function", x="i/n", y="Gamma_n(i)") + # title="Primitive"
+    scale_color_manual(values=c("CLS"="salmon",
+                                "GCM"="deepskyblue")) +
+    labs(color="Function", x="F_n(X)", y="Gamma_n(X)") + # title="Primitive"
     theme(legend.position="bottom")
 
 }
